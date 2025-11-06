@@ -1,9 +1,0 @@
-﻿version: '3.8'
-services:
-  biblia_desktop:
-    build: .
-    ports:
-      - '5000:5000'
-    volumes:
-      - .:/app
-    restart: always

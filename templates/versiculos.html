@@ -1,50 +1,193 @@
-﻿{% extends 'base.html' %}
+{% extends 'base.html' %}
 {% block content %}
-<div class='container mt-4'>
-<h2>{{ LIVROS_NOMES.get(livro.abbrev, livro.abbrev) }} - Capítulo {{ capitulo }}</h2>
-<div class='row'>
-{% for v in versiculos %}
-<div class='col-md-1 col-sm-2 col-2 mb-2'>
-<button type='button' class='btn btn-outline-primary w-100 versiculo' data-index='{{ loop.index }}' data-text='{{ v }}'>
-{{ loop.index }}
-</button>
+<div class="mb-3 text-center">
+  <h2>{{ LIVROS_NOMES.get(livro["abbrev"], livro.get("name", livro["abbrev"])) }} — Capítulo {{ capitulo }}</h2>
 </div>
-{% endfor %}
+
+<div class="card p-3">
+  <div class="mb-3">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <button id="selectModeBtn" class="btn btn-outline-secondary btn-sm">
+          Ativar seleção (segurar + arrastar)
+        </button>
+      </div>
+      <div>
+        <button id="clearSelection" class="btn btn-sm btn-danger">Limpar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Grade de versículos: apenas números nos botões -->
+  <div id="verseGrid" class="d-flex flex-wrap gap-2 verse-grid" style="max-height: 60vh; overflow-y: auto;">
+    {# Suporta dict (mapping) e lista #}
+    {% if versiculos is mapping %}
+      {% for numero, texto in versiculos.items() %}
+        <button class="btn btn-outline-primary verse-btn"
+                data-index="{{ numero }}"
+                data-text="{{ texto|e }}"
+                style="white-space: normal; text-align: left; min-width:48px;">
+          <strong>{{ numero }}</strong>
+        </button>
+      {% endfor %}
+    {% else %}
+      {% for texto in versiculos %}
+        {% set numero = loop.index %}
+        <button class="btn btn-outline-primary verse-btn"
+                data-index="{{ numero }}"
+                data-text="{{ texto|e }}"
+                style="white-space: normal; text-align: left; min-width:48px;">
+          <strong>{{ numero }}</strong>
+        </button>
+      {% endfor %}
+    {% endif %}
+  </div>
+
+  <!-- Versículos selecionados (mostra o texto completo, com quebras) -->
+  <div class="mt-4">
+    <h5>Versículos selecionados</h5>
+    <div class="card p-2 verses-card" style="max-height: 200px; overflow-y: auto;">
+      <div id="selecionados" style="white-space: pre-line;"><small>Nenhum versículo selecionado.</small></div>
+    </div>
+  </div>
 </div>
-<div class='mt-3'>
-<h5>Versículos selecionados:</h5>
-<ul id='selecionados'></ul>
+
+<div class="mt-3">
+  <a href="{{ url_for('capitulos', livro_abrev=(livro.abbrev if livro.abbrev is defined else livro['abbrev']), versao=versao) }}" 
+     class="btn btn-link">⬅ Voltar</a>
 </div>
-</div>
+
 <script>
-let lastIndex = null;
-const buttons = document.querySelectorAll('.versiculo');
-const selecionadosList = document.getElementById('selecionados');
+const verseGrid = document.getElementById('verseGrid');
+const selecionadosDiv = document.getElementById('selecionados');
+const btnSelectMode = document.getElementById('selectModeBtn');
+const btnClear = document.getElementById('clearSelection');
+
+let selecting = false;
+let selectedIndexes = new Set();
+
 function updateSelecionados() {
-selecionadosList.innerHTML = '';
-document.querySelectorAll('.versiculo.selected').forEach(btn => {
-const li = document.createElement('li');
-li.textContent = btn.dataset.index + '. ' + btn.dataset.text;
-selecionadosList.appendChild(li);
-});
+  if (selectedIndexes.size === 0) {
+    selecionadosDiv.innerHTML = '<small>Nenhum versículo selecionado.</small>';
+    return;
+  }
+  const idxs = Array.from(selectedIndexes).map(Number).sort((a, b) => a - b);
+  const texts = idxs.map(i => {
+    const btn = verseGrid.querySelector('[data-index="'+i+'"]');
+    return i + '. ' + (btn ? btn.dataset.text : '');
+  });
+  selecionadosDiv.textContent = texts.join('\n\n');
 }
-buttons.forEach(btn => {
-btn.addEventListener('click', (e) => {
-const index = parseInt(btn.dataset.index);
-if (e.shiftKey && lastIndex !== null) {
-const start = Math.min(lastIndex, index);
-const end = Math.max(lastIndex, index);
-buttons.forEach(b => {
-const bIndex = parseInt(b.dataset.index);
-if (bIndex >= start && bIndex <= end) { b.classList.add('selected'); }
+
+function toggleButton(btn, state) {
+  if (state === undefined) btn.classList.toggle('selected');
+  else if (state) btn.classList.add('selected');
+  else btn.classList.remove('selected');
+}
+
+btnSelectMode.addEventListener('click', () => {
+  selecting = !selecting;
+  btnSelectMode.classList.toggle('btn-success', selecting);
+  btnSelectMode.textContent = selecting ? 'Modo seleção ativado' : 'Ativar seleção (segurar + arrastar)';
 });
-} else if (e.ctrlKey || e.metaKey) { btn.classList.toggle('selected'); }
-else { buttons.forEach(b => b.classList.remove('selected')); btn.classList.add('selected'); }
-lastIndex = index; updateSelecionados();
+
+btnClear.addEventListener('click', () => {
+  selectedIndexes.clear();
+  verseGrid.querySelectorAll('.verse-btn').forEach(b => b.classList.remove('selected'));
+  updateSelecionados();
 });
+
+// Seleção por arrastar/toque/mouse
+let isDragging = false;
+let lastTouched = null;
+
+verseGrid.addEventListener('mousedown', e => {
+  if (!selecting) return;
+  isDragging = true;
+  const btn = e.target.closest('button[data-index]');
+  if (btn) {
+    const idx = btn.dataset.index;
+    selectedIndexes.add(idx);
+    toggleButton(btn, true);
+    updateSelecionados();
+  }
+});
+
+document.addEventListener('mouseup', () => isDragging = false);
+
+verseGrid.addEventListener('mousemove', e => {
+  if (!selecting || !isDragging) return;
+  const btn = e.target.closest('button[data-index]');
+  if (btn && btn !== lastTouched) {
+    const idx = btn.dataset.index;
+    selectedIndexes.add(idx);
+    toggleButton(btn, true);
+    updateSelecionados();
+    lastTouched = btn;
+  }
+});
+
+// Toque (mobile)
+verseGrid.addEventListener('touchstart', e => {
+  if (!selecting) return;
+  const btn = e.target.closest('button[data-index]');
+  if (btn) {
+    const idx = btn.dataset.index;
+    selectedIndexes.add(idx);
+    toggleButton(btn, true);
+    updateSelecionados();
+  }
+}, { passive: true });
+
+verseGrid.addEventListener('touchmove', e => {
+  if (!selecting) return;
+  const t = e.touches[0];
+  const el = document.elementFromPoint(t.clientX, t.clientY);
+  const btn = el ? el.closest('button[data-index]') : null;
+  if (btn && btn !== lastTouched) {
+    const idx = btn.dataset.index;
+    selectedIndexes.add(idx);
+    toggleButton(btn, true);
+    updateSelecionados();
+    lastTouched = btn;
+  }
+}, { passive: true });
+
+verseGrid.addEventListener('click', e => {
+  if (selecting) return; // quando em modo seleção, clique só adiciona
+  const btn = e.target.closest('button[data-index]');
+  if (!btn) return;
+  const idx = btn.dataset.index;
+  if (selectedIndexes.has(idx)) {
+    selectedIndexes.delete(idx);
+    toggleButton(btn, false);
+  } else {
+    selectedIndexes.add(idx);
+    toggleButton(btn, true);
+  }
+  updateSelecionados();
 });
 </script>
+
 <style>
-.versiculo.selected { background-color: #ffc107 !important; color: #000 !important; }
+.verse-btn {
+  min-width: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.verse-btn.selected {
+  background-color: #0d6efd;
+  color: white;
+}
+.verse-grid::-webkit-scrollbar,
+.verses-card::-webkit-scrollbar {
+  width: 8px;
+}
+.verse-grid::-webkit-scrollbar-thumb,
+.verses-card::-webkit-scrollbar-thumb {
+  background-color: #ccc;
+  border-radius: 4px;
+}
 </style>
 {% endblock %}
