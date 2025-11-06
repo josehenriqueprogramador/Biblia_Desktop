@@ -1,17 +1,17 @@
 # Usa imagem leve do Python
 FROM python:3.12-slim
 
-# Define o diretório de trabalho
+# Define diretório de trabalho
 WORKDIR /app
 
-# Copia tudo para o contêiner
+# Copia os arquivos do projeto
 COPY . .
 
-# Instala dependências (se houver arquivo requirements.txt)
-RUN pip install --no-cache-dir flask fastapi uvicorn jinja2
+# Instala Flask e dependências
+RUN pip install --no-cache-dir flask jinja2
 
-# Expõe a porta padrão do Render
+# Exponha a porta exigida pelo Render
 EXPOSE 10000
 
-# Comando para iniciar o servidor
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "10000"]
+# Comando para rodar o Flask
+CMD ["python", "app.py"]
