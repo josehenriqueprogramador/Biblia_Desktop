@@ -1,13 +1,22 @@
-﻿{% extends 'base.html' %}
+{% extends 'base.html' %}
 {% block content %}
-<h2 class='mb-4'>Selecione um livro</h2>
-<div class='row row-cols-1 row-cols-md-4 g-3'>
-{% for livro in livros %}
-<div class='col'>
-<a href='{{ url_for('capitulos', livro_abrev=livro.abbrev) }}' class='btn btn-primary w-100'>
-{{ LIVROS_NOMES.get(livro.abbrev, livro.name) }}
-</a>
+
+<div class="text-center my-3">
+  <h1>📖 Bíblia — {{ versao|upper }}</h1>
+  <p class="lead">Escolha um livro</p>
 </div>
-{% endfor %}
+
+<div class="row book-grid g-3">
+  {% for livro in livros %}
+    <div class="col-6 col-md-4 col-lg-3">
+      <a href="{{ url_for('capitulos', livro_abrev=livro['abbrev'], versao=versao) }}"
+         class="btn btn-primary w-100 text-start">
+        {{ LIVROS_NOMES.get(livro['abbrev'], livro.get('name', livro['abbrev'])) }}
+      </a>
+    </div>
+  {% else %}
+    <p class="text-muted">Nenhum livro encontrado.</p>
+  {% endfor %}
 </div>
+
 {% endblock %}
